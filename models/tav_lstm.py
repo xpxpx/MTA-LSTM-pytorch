@@ -15,10 +15,6 @@ class TopicAveragedLSTM(nn.Module):
             pretrain_embedding=config.pretrain_word_embedding,
             parameter_update=config.word_embedding_update
         )
-        self.encoder = nn.Linear(
-            config.word_embedding_dim,
-            config.decoder_hidden_dim
-        )
         self.decoder = LSTMDecoder(
             config.word_embedding_dim,
             config.decoder_hidden_dim
@@ -33,17 +29,27 @@ class TopicAveragedLSTM(nn.Module):
         self.decoder_dropout = nn.Dropout(config.decoder_dropout)
 
     def forward(self, inputs):
-        topic_embed = self.embedding_dropout(self.word_embedding(inputs['encoder_topic']))
+        topic_embed = self.embedding_dropout(self.word_embedding(inputs['topic']))
+        topic_embed = topic_embed.mean(dim=1)
 
-        max_decoder_step = inputs['decoder_word'].size(1)
+        decoder_step = inputs['decoder_word'].size(1)
 
         total_output = []
-        for step in range(1, max_decoder_step):
-            hidden = self.decoder(inputs['decoder_word'][:, step])
+        hidden = None
+        for step in range(decoder_step):
+            if step == 0:
+                input_embed = topic_embed
+            else:
+                input_embed = self.embedding_dropout(self.word_embedding(inputs['word'][:, step]))
+
+            hidden = self.decoder(input_embed, hidden)
             output = self.output(hidden[0])
             total_output.append(output)
 
         return total_output
 
-    def predict(self, inputs):
+    def predict(self, inputs, max_decoder_step=100):
+        topic_embed = self.embedding_dropout(self.word_embedding(inputs['topic']))
+        topic_embed = topic_embed.mean(dim=1)
+
         pass
